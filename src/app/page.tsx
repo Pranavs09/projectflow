@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function HomePage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
@@ -16,19 +18,19 @@ export default function HomePage() {
         </p>
 
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-          <button
-            type="button"
+          <Link
+            href="/register"
             className="rounded-lg bg-blue-600 px-6 py-3 font-semibold transition hover:bg-blue-500"
           >
             Start for free
-          </button>
+          </Link>
 
-          <button
-            type="button"
+          <Link
+            href="/login"
             className="rounded-lg border border-slate-700 px-6 py-3 font-semibold transition hover:bg-slate-800"
           >
-            View demo
-          </button>
+            Log in
+          </Link>
         </div>
       </section>
     </main>

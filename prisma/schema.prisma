@@ -7,6 +7,14 @@ datasource db {
   provider = "postgresql"
 }
 
+data: {
+  workspaceId,
+  name,
+  description: description || null,
+  color,
+  createdById: userId,
+},
+
 enum WorkspaceRole {
   OWNER
   ADMIN
@@ -35,12 +43,13 @@ enum TaskPriority {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  image     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  image        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   memberships   WorkspaceMember[]
   ownedTasks    Task[]            @relation("TaskCreator")
@@ -86,6 +95,9 @@ model Project {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   workspaceId String
+  color       String        e@default("#2563EB")
+  createdById String
+
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   tasks     Task[]
