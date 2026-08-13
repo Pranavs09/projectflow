@@ -16,7 +16,6 @@ type CreateProjectResult =
         id: string;
         name: string;
         description: string | null;
-        color: string;
         workspaceId: string;
       };
     }
@@ -27,7 +26,6 @@ type CreateProjectResult =
         workspaceId?: string[];
         name?: string[];
         description?: string[];
-        color?: string[];
       };
     };
 
@@ -49,7 +47,6 @@ export async function createProject({
     workspaceId,
     name,
     description,
-    color,
   } = validationResult.data;
 
   const membership = await prisma.workspaceMember.findFirst({
@@ -76,14 +73,12 @@ export async function createProject({
       workspaceId,
       name,
       description: description || null,
-      color,
     },
 
     select: {
       id: true,
       name: true,
       description: true,
-      color: true,
       workspaceId: true,
     },
   });

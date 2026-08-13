@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { TaskBoard } from "@/features/tasks/components/task-board";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -11,9 +12,7 @@ type ProjectPageProps = {
   }>;
 };
 
-export default async function ProjectPage({
-  params,
-}: ProjectPageProps) {
+export default async function ProjectPage({ params }: ProjectPageProps) {
   const session = await auth();
 
   if (!session?.user?.id) {
@@ -40,13 +39,35 @@ export default async function ProjectPage({
       id: true,
       name: true,
       description: true,
-      color: true,
       workspaceId: true,
       createdAt: true,
 
       workspace: {
         select: {
           name: true,
+        },
+      },
+
+      tasks: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          status: true,
+          priority: true,
+          dueDate: true,
+          createdAt: true,
+
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
         },
       },
 
@@ -86,13 +107,6 @@ export default async function ProjectPage({
 
       <section className="mx-auto max-w-7xl px-6 py-10">
         <div className="flex items-start gap-4">
-          <div
-            className="mt-2 h-5 w-5 shrink-0 rounded-full"
-            style={{
-              backgroundColor: project.color,
-            }}
-          />
-
           <div>
             <p className="text-sm font-semibold uppercase tracking-widest text-blue-400">
               Project
@@ -111,34 +125,40 @@ export default async function ProjectPage({
 
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <article className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-            <p className="text-sm text-slate-400">
-              Tasks
-            </p>
+            <p className="text-sm text-slate-400">Tasks</p>
 
-            <p className="mt-2 text-3xl font-bold">
-              {project._count.tasks}
-            </p>
+            <p className="mt-2 text-3xl font-bold">{project._count.tasks}</p>
           </article>
 
           <article className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-            <p className="text-sm text-slate-400">
-              Created
-            </p>
+            <p className="text-sm text-slate-400">Created</p>
 
             <p className="mt-2 text-lg font-semibold">
               {project.createdAt.toLocaleDateString()}
             </p>
           </article>
         </div>
+        <section className="mt-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold">Task board</h2>
 
-        <section className="mt-8 rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-6 py-12 text-center">
-          <h2 className="text-lg font-semibold">
-            No tasks yet
-          </h2>
+              <p className="mt-1 text-sm text-slate-400">
+                Track work by status.
+              </p>
+            </div>
 
-          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-400">
-            Create the first task to begin tracking work for this project.
-          </p>
+            <Link
+              href={`/workspaces/${project.workspaceId}/projects/${project.id}/tasks/new`}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold transition hover:bg-blue-500"
+            >
+              Create task
+            </Link>
+          </div>
+
+          <div className="mt-6">
+            <TaskBoard initialTasks={project.tasks} />
+          </div>
         </section>
       </section>
     </main>
