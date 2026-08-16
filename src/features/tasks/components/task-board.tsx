@@ -1,20 +1,21 @@
 "use client";
 
 import { useState } from "react";
+
+import { DndContext, type DragEndEvent, useDroppable } from "@dnd-kit/core";
+
 import {
-  DndContext,
-  type DragEndEvent,
-  useDraggable,
-  useDroppable,
-} from "@dnd-kit/core";
+  arrayMove,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+
+import { CSS } from "@dnd-kit/utilities";
 
 import { updateTaskStatus } from "@/features/tasks/actions/update-task-status";
 
-type TaskStatus =
-  | "TODO"
-  | "IN_PROGRESS"
-  | "IN_REVIEW"
-  | "DONE";
+type TaskStatus = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
 
 type TaskBoardItem = {
   id: string;
@@ -22,6 +23,8 @@ type TaskBoardItem = {
   description: string | null;
   status: TaskStatus;
   priority: string;
+  position: number;
+
   assignee: {
     id: string;
     name: string;
@@ -40,40 +43,34 @@ const columns = [
   { key: "DONE", label: "Done" },
 ] as const;
 
-function DraggableTask({
-  task,
-}: {
-  task: TaskBoardItem;
-}) {
+function SortableTask({ task }: { task: TaskBoardItem }) {
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
+    transition,
     isDragging,
-  } = useDraggable({
+  } = useSortable({
     id: task.id,
   });
 
-  const style = transform
-    ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-      }
-    : undefined;
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   return (
     <article
       ref={setNodeRef}
       style={style}
-      {...listeners}
       {...attributes}
-      className={`cursor-grab rounded-lg border border-slate-800 bg-slate-950 p-4 transition ${
+      {...listeners}
+      className={`cursor-grab rounded-lg border border-slate-800 bg-slate-950 p-4 ${
         isDragging ? "opacity-50" : ""
       }`}
     >
-      <h4 className="font-medium">
-        {task.title}
-      </h4>
+      <h4 className="font-medium">{task.title}</h4>
 
       <p className="mt-2 line-clamp-2 text-sm text-slate-400">
         {task.description ?? "No description provided."}
@@ -99,10 +96,7 @@ function DroppableColumn({
   id: TaskStatus;
   children: React.ReactNode;
 }) {
-  const {
-    isOver,
-    setNodeRef,
-  } = useDroppable({
+  const { isOver, setNodeRef } = useDroppable({
     id,
   });
 
@@ -120,44 +114,41 @@ function DroppableColumn({
   );
 }
 
-export function TaskBoard({
-  initialTasks,
-}: TaskBoardProps) {
+export function TaskBoard({ initialTasks }: TaskBoardProps) {
   const [tasks, setTasks] = useState(initialTasks);
   const [error, setError] = useState<string | null>(null);
 
   const tasksByStatus = {
-    TODO: tasks.filter(
-      (task) => task.status === "TODO",
-    ),
-    IN_PROGRESS: tasks.filter(
-      (task) => task.status === "IN_PROGRESS",
-    ),
-    IN_REVIEW: tasks.filter(
-      (task) => task.status === "IN_REVIEW",
-    ),
-    DONE: tasks.filter(
-      (task) => task.status === "DONE",
-    ),
+    TODO: tasks
+      .filter((task) => task.status === "TODO")
+      .sort((a, b) => a.position - b.position),
+
+    IN_PROGRESS: tasks
+      .filter((task) => task.status === "IN_PROGRESS")
+      .sort((a, b) => a.position - b.position),
+
+    IN_REVIEW: tasks
+      .filter((task) => task.status === "IN_REVIEW")
+      .sort((a, b) => a.position - b.position),
+
+    DONE: tasks
+      .filter((task) => task.status === "DONE")
+      .sort((a, b) => a.position - b.position),
   };
 
-  async function handleDragEnd(
-    event: DragEndEvent,
-  ) {
+  async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
 
     if (!over) {
       return;
     }
 
-    const taskId = String(active.id);
-    const newStatus = String(over.id) as TaskStatus;
+    const activeTaskId = String(active.id);
+    const overID = String(over.id);
 
-    const task = tasks.find(
-      (item) => item.id === taskId,
-    );
+    const activeTask = tasks.find((task) => task.id === activeTaskId);
 
-    if (!task || task.status === newStatus) {
+    if (!activeTask) {
       return;
     }
 
@@ -165,30 +156,94 @@ export function TaskBoard({
 
     setError(null);
 
-    setTasks((currentTasks) =>
-      currentTasks.map((item) =>
-        item.id === taskId
-          ? {
-              ...item,
-              status: newStatus,
-            }
-          : item,
-      ),
-    );
+    const columnStatuses: TaskStatus[] = [
+      "TODO",
+      "IN_PROGRESS",
+      "IN_REVIEW",
+      "DONE",
+    ];
 
-    const result = await updateTaskStatus({
-      taskId,
-      status: newStatus,
-    });
+    const droppedOnColumn = columnStatuses.includes(overID as TaskStatus);
 
-    if (!result.success) {
-      setTasks(previousTasks);
+    if (droppedOnColumn) {
+      const newStatus = overID as TaskStatus;
 
-      setError(
-        result.error ??
-          "Unable to update task status.",
+      if (activeTask.status === newStatus) {
+        return;
+      }
+
+      setTasks((currentTasks) =>
+        currentTasks.map((task) =>
+          task.id === activeTaskId ? { ...task, status: newStatus } : task,
+        ),
       );
+
+      const result = await updateTaskStatus({
+        taskId: activeTaskId,
+        status: newStatus,
+      });
+
+      if (!result.success) {
+        setError(result.error ?? "An error occurred while updating the task.");
+        setTasks(previousTasks);
+      }
+
+      return;
     }
+
+    const overTask = tasks.find((task) => task.id === overID);
+
+    if (!overTask) {
+      return;
+    }
+
+    if (activeTask.status !== overTask.status) {
+      setTasks((currentTasks) =>
+        currentTasks.map((task) =>
+          task.id === activeTaskId
+            ? { ...task, status: overTask.status }
+            : task,
+        ),
+      );
+
+      const result = await updateTaskStatus({
+        taskId: activeTaskId,
+        status: overTask.status,
+      });
+
+      if (!result.success) {
+        setError(result.error ?? "An error occurred while updating the task.");
+        setTasks(previousTasks);
+      }
+
+      return;
+    }
+
+    const sameColumnTasks = tasksByStatus[activeTask.status];
+
+    const oldIndex = sameColumnTasks.findIndex(
+      (task) => task.id === activeTaskId,
+    );
+    const newIndex = sameColumnTasks.findIndex((task) => task.id === overID);
+
+    if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) {
+      return;
+    }
+
+    const reorderedColumnTasks = arrayMove(sameColumnTasks, oldIndex, newIndex);
+
+    setTasks((currentTasks) => {
+      const otherTasks = currentTasks.filter(
+        (task) => task.status !== activeTask.status,
+      );
+
+      const reorderedTasks = reorderedColumnTasks.map((task, index) => ({
+        ...task,
+        position: index,
+      }));
+
+      return [...otherTasks, ...reorderedTasks];
+    });
   }
 
   return (
@@ -201,38 +256,34 @@ export function TaskBoard({
 
       <div className="grid gap-5 xl:grid-cols-4">
         {columns.map((column) => {
-          const columnTasks =
-            tasksByStatus[column.key];
+          const columnTasks = tasksByStatus[column.key];
 
           return (
-            <DroppableColumn
-              key={column.key}
-              id={column.key}
-            >
+            <DroppableColumn key={column.key} id={column.key}>
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold">
-                  {column.label}
-                </h3>
+                <h3 className="font-semibold">{column.label}</h3>
 
                 <span className="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-300">
                   {columnTasks.length}
                 </span>
               </div>
 
-              <div className="mt-4 space-y-3">
-                {columnTasks.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-slate-700 px-4 py-8 text-center text-sm text-slate-500">
-                    No tasks
-                  </div>
-                ) : (
-                  columnTasks.map((task) => (
-                    <DraggableTask
-                      key={task.id}
-                      task={task}
-                    />
-                  ))
-                )}
-              </div>
+              <SortableContext
+                items={columnTasks.map((task) => task.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="mt-4 space-y-3">
+                  {columnTasks.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-slate-700 px-4 py-8 text-center text-sm text-slate-500">
+                      No tasks
+                    </div>
+                  ) : (
+                    columnTasks.map((task) => (
+                      <SortableTask key={task.id} task={task} />
+                    ))
+                  )}
+                </div>
+              </SortableContext>
             </DroppableColumn>
           );
         })}

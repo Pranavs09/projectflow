@@ -49,9 +49,14 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       },
 
       tasks: {
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: [
+          {
+            status: "asc",
+          },
+          {
+            position: "asc",
+          },
+        ],
         select: {
           id: true,
           title: true,
@@ -60,6 +65,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           priority: true,
           dueDate: true,
           createdAt: true,
+          position: true,
 
           assignee: {
             select: {
