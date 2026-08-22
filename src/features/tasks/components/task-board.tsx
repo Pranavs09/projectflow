@@ -15,6 +15,8 @@ import { CSS } from "@dnd-kit/utilities";
 
 import { updateTaskStatus } from "@/features/tasks/actions/update-task-status";
 
+import { reorderTasks } from "@/features/tasks/actions/reorder-tasks";
+
 type TaskStatus = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
 
 type TaskBoardItem = {
@@ -231,6 +233,32 @@ export function TaskBoard({ initialTasks }: TaskBoardProps) {
     }
 
     const reorderedColumnTasks = arrayMove(sameColumnTasks, oldIndex, newIndex);
+
+    const reorderedTasks = reorderedColumnTasks.map((task, index) => ({
+      ...task,
+      position: index,
+    }));
+
+    setTasks((currentTasks) => {
+      const otherTasks = currentTasks.filter(
+        (task) => task.status !== activeTask.status,
+      );
+
+      return [...otherTasks, ...reorderedTasks];
+    });
+
+    const result = await reorderTasks({
+      tasks: reorderedTasks.map((task) => ({
+        id: task.id,
+        position: task.position,
+      })),
+    });
+
+    if (!result.success) {
+      setTasks(previousTasks);
+
+      setError(result.error ?? "Unable to save task order.");
+    }
 
     setTasks((currentTasks) => {
       const otherTasks = currentTasks.filter(
